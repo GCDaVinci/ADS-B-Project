@@ -4,7 +4,7 @@ import time
 from collections import defaultdict
 import subprocess
 
-#filename = "hexstream.txt"
+#python command to run dump1090 and pipe the output to the script
 cmd = ['dump1090', '--raw']
 result = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, bufsize=1)
 
@@ -35,7 +35,7 @@ def visualize_matrix(aircraft_matrix):
     
     # Calculate column widths
     col_width = 25
-    row_names = ["ICAO", "odd_msg", "even_msg", "odd_time", "even_time", "altitude"]
+    row_names = ["ICAO", "odd_msg", "even_msg", "odd_time", "even_time", "altitude", "time_since_last_message"]
     
     # Print ICAO row first
     icao_row_str = "ICAO".ljust(12)
@@ -61,6 +61,8 @@ def visualize_matrix(aircraft_matrix):
                 value = f"{data['even_time']:.2f}" if data['even_time'] else "None"
             elif row_name == "altitude":
                 value = str(data['altitude']) if data['altitude'] else "None"
+            elif row_name == "time_since_last_message":
+                value = f"{data['last_message_time']:.2f}" if data['last_message_time'] else "None"
             row_str += str(value).ljust(col_width)
         print(row_str)
     
@@ -115,7 +117,7 @@ def handle_dump1090():
     try:
         for line in result.stdout:
             line = line.decode("ascii", errors="ignores").strip()
-            msg_time = time.time()
+            current_time = time.time()
             total_count += 1
             # # Remove the "*" at the start and the ";" at the end
             cleaned = line.lstrip('*').rstrip(';\n')
@@ -130,14 +132,14 @@ def handle_dump1090():
                 
                 # Initialize new column if ICAO doesn't exist
                 if icao not in aircraft_matrix:
-                    #print(icao + " new aircraft found")
                     aircraft_matrix[icao] = {
                         'icao': icao,
                         'altitude': altitude,
                         'odd_msg': None,
                         'even_msg': None,
                         'odd_time': None,
-                        'even_time': None
+                        'even_time': None,
+                        'last_message_time': None
                     }
                 
                 # Initialize new column in position matrix if ICAO doesn't exist
@@ -153,17 +155,13 @@ def handle_dump1090():
                 if pms.decoder.adsb.oe_flag(cleaned) == 1:
                     # Odd message - update row 1 (odd_msg) and row 3 (odd_time)
                     aircraft_matrix[icao]['odd_msg'] = cleaned
-                    aircraft_matrix[icao]['odd_time'] = msg_time
-                    #pms.tell(cleaned)
-                    #print(icao + " odd message")
-                    #time.sleep(1)
+                    aircraft_matrix[icao]['odd_time'] = current_time
+                    aircraft_matrix[icao]['last_message_time'] = current_time
                 else:
                     # Even message - update row 2 (even_msg) and row 4 (even_time)
                     aircraft_matrix[icao]['even_msg'] = cleaned
-                    aircraft_matrix[icao]['even_time'] = msg_time
-                    #pms.tell(cleaned)
-                    #print(icao + " even message")
-                    #time.sleep(1)
+                    aircraft_matrix[icao]['even_time'] = current_time
+                    aircraft_matrix[icao]['last_message_time'] = current_time
                 
                 # Visualize the matrices after each update
                 visualize_matrix(aircraft_matrix)
